@@ -40,7 +40,10 @@ parser.add_argument('--noamp', action='store_true', help='disable mixed precisio
 parser.add_argument('--nowandb', action='store_true', help='disable wandb')
 parser.add_argument('--mixup', action='store_true', help='add mixup augumentations')
 parser.add_argument('--net', default='vit')
-parser.add_argument('--bs', default='512')
+# parser.add_argument('--bs', default='512')
+
+parser.add_argument('--bs', default='256')
+
 parser.add_argument('--size', default="32")
 parser.add_argument('--n_epochs', type=int, default='200')
 parser.add_argument('--patch', default='4', type=int, help="patch for ViT")
