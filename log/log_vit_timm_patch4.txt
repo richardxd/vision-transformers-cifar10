@@ -1,0 +1,4 @@
+Thu Dec  7 15:19:37 2023 Epoch 0, lr: 0.0001000, val loss: 15.34110, acc: 94.98000
+Thu Dec  7 15:57:25 2023 Epoch 1, lr: 0.0001000, val loss: 16.81904, acc: 94.51000
+Thu Dec  7 16:37:41 2023 Epoch 2, lr: 0.0001000, val loss: 14.13016, acc: 95.29000
+Thu Dec  7 17:17:50 2023 Epoch 3, lr: 0.0001000, val loss: 14.74221, acc: 95.38000
