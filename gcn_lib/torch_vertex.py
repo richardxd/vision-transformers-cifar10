@@ -8,7 +8,7 @@ from .torch_edge import DenseDilatedKnnGraph
 from .pos_embed import get_2d_relative_pos_embed
 import torch.nn.functional as F
 from timm.models.layers import DropPath
-
+from torch_geometric.nn.dense import dense_diff_pool
 
 class MRConv2d(nn.Module):
     """

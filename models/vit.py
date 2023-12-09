@@ -5,6 +5,7 @@ from torch import nn
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+from gcn_lib.torch_vertex import Grapher, act_layer
 
 # helpers
 
@@ -12,6 +13,23 @@ def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
 # classes
+class CIFARStem(nn.Module):
+    def __init__(self, in_dim=3, out_dim=192, act='relu'):
+        super().__init__()
+        self.convs = nn.Sequential(
+            nn.Conv2d(in_dim, out_dim//4, 3, stride=2, padding=1),  # Changed stride to 1
+            nn.BatchNorm2d(out_dim//4),
+            act_layer(act),
+            nn.Conv2d(out_dim//4, out_dim//2, 3, stride=2, padding=1),  # Changed stride to 1
+            nn.BatchNorm2d(out_dim//2),
+            act_layer(act),
+            nn.Conv2d(out_dim//2, out_dim, 3, stride=2, padding=1),  # Optionally, adjust or remove
+            nn.BatchNorm2d(out_dim),
+        )
+
+    def forward(self, x):
+        x = self.convs(x)
+        return x
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
@@ -109,8 +127,23 @@ class ViT(nn.Module):
             nn.Linear(dim, num_classes)
         )
 
+        self.cifarstem = CIFARStem(in_dim=3, out_dim=320, act="relu")
+        self.Grapher = Grapher(320, kernel_size=16, dilation=1, conv='edge', act='gelu', norm="batch",
+                 bias=True,  stochastic=False, epsilon=0.0, r=1, n=num_patches, drop_path=0.0, relative_pos=False)
+
     def forward(self, img):
+        # augment the image by generating knn graphs on it
+        # print("img shape: ", img.shape)
+        x = self.cifarstem(img)
+        # print("x shape: ", x.shape)
+        
+        x = self.Grapher(x)
+        # print("x shape after Grapher:", x.shape)
+        
+        # apply dense pooling 
+
         x = self.to_patch_embedding(img)
+        # print("x shape: ", x.shape)
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)

@@ -127,7 +127,16 @@ class ViT(nn.Module):
         )
 
     def forward(self, img):
+        # modify the to_patch_embedding(img)
+        # to be derived from knn graphs instead of patches
+        # each patch is computed using grapher module 
+        # which is a graph convolution module
+        # the graph is mapped to a grid graph of 16 x 16 
+        # the same size as the patch grid
+
+        print("img shape: ", img.shape)
         x = self.to_patch_embedding(img)
+        print("x shape:", x.shape)
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)

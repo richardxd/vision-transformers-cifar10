@@ -14,6 +14,7 @@ from timm.models.registry import register_model
 
 
 
+
 # Define CIFAR-10 mean and standard deviation
 CIFAR10_DEFAULT_MEAN = (0.4914, 0.4822, 0.4465)
 CIFAR10_DEFAULT_STD = (0.2023, 0.1994, 0.2010)
