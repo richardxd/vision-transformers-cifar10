@@ -19,6 +19,7 @@ import numpy as np
 import torchvision
 import torchvision.transforms as transforms
 
+
 import os
 import argparse
 import pandas as pd
@@ -36,41 +37,42 @@ from timm.scheduler import create_scheduler
 # parsers
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
-# Learning rate schedule parameters
-parser.add_argument('--sched', default='step', type=str, metavar='SCHEDULER',
-                    help='LR scheduler (default: "step"')
-parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                    help='learning rate (default: 0.01)')
-parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
-                    help='learning rate noise on/off epoch percentages')
-parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
-                    help='learning rate noise limit percent (default: 0.67)')
-parser.add_argument('--lr-noise-std', type=float, default=1.0, metavar='STDDEV',
-                    help='learning rate noise std-dev (default: 1.0)')
-parser.add_argument('--lr-cycle-mul', type=float, default=1.0, metavar='MULT',
-                    help='learning rate cycle len multiplier (default: 1.0)')
-parser.add_argument('--lr-cycle-limit', type=int, default=1, metavar='N',
-                    help='learning rate cycle limit')
-parser.add_argument('--warmup-lr', type=float, default=0.0001, metavar='LR',
-                    help='warmup learning rate (default: 0.0001)')
-parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
-                    help='lower lr bound for cyclic schedulers that hit 0 (1e-5)')
-parser.add_argument('--epochs', type=int, default=200, metavar='N',
-                    help='number of epochs to train (default: 2)')
-parser.add_argument('--start-epoch', default=None, type=int, metavar='N',
-                    help='manual epoch number (useful on restarts)')
-parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
-                    help='epoch interval to decay LR')
-parser.add_argument('--warmup-epochs', type=int, default=3, metavar='N',
-                    help='epochs to warmup LR, if scheduler supports')
-parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
-                    help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
-parser.add_argument('--patience-epochs', type=int, default=10, metavar='N',
-                    help='patience epochs for Plateau LR scheduler (default: 10')
-parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
-                    help='LR decay rate (default: 0.1)')
+# # Learning rate schedule parameters
+# parser.add_argument('--sched', default='step', type=str, metavar='SCHEDULER',
+#                     help='LR scheduler (default: "step"')
+# parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
+#                     help='learning rate (default: 0.01)')
+# parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
+#                     help='learning rate noise on/off epoch percentages')
+# parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
+#                     help='learning rate noise limit percent (default: 0.67)')
+# parser.add_argument('--lr-noise-std', type=float, default=1.0, metavar='STDDEV',
+#                     help='learning rate noise std-dev (default: 1.0)')
+# parser.add_argument('--lr-cycle-mul', type=float, default=1.0, metavar='MULT',
+#                     help='learning rate cycle len multiplier (default: 1.0)')
+# parser.add_argument('--lr-cycle-limit', type=int, default=1, metavar='N',
+#                     help='learning rate cycle limit')
+# parser.add_argument('--warmup-lr', type=float, default=0.0001, metavar='LR',
+#                     help='warmup learning rate (default: 0.0001)')
+# parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
+#                     help='lower lr bound for cyclic schedulers that hit 0 (1e-5)')
+# parser.add_argument('--epochs', type=int, default=200, metavar='N',
+#                     help='number of epochs to train (default: 2)')
+# parser.add_argument('--start-epoch', default=None, type=int, metavar='N',
+#                     help='manual epoch number (useful on restarts)')
+# parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
+#                     help='epoch interval to decay LR')
+# parser.add_argument('--warmup-epochs', type=int, default=3, metavar='N',
+#                     help='epochs to warmup LR, if scheduler supports')
+# parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
+#                     help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
+# parser.add_argument('--patience-epochs', type=int, default=10, metavar='N',
+#                     help='patience epochs for Plateau LR scheduler (default: 10')
+# parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
+#                     help='LR decay rate (default: 0.1)')
 
 
+parser.add_argument('--lr', default=1e-4, type=float, help='learning rate') # resnets.. 1e-3, Vit..1e-4
 parser.add_argument('--opt', default="adam")
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--noaug', action='store_true', help='disable use randomaug')
@@ -293,8 +295,8 @@ elif args.opt == "sgd":
     optimizer = optim.SGD(net.parameters(), lr=args.lr)  
     
 # use cosine scheduling
-# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.n_epochs)
-scheduler, num_epochs = create_scheduler(args, optimizer)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.n_epochs)
+# scheduler, num_epochs = create_scheduler(args, optimizer)
 
 ##### Training
 scaler = torch.cuda.amp.GradScaler(enabled=use_amp)

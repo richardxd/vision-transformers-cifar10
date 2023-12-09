@@ -85,6 +85,10 @@ def dense_knn_matrix(x, k=2, relative_pos=None):
             _, nn_idx = torch.topk(-dist, k=k) # b, n, k
         ######
         center_idx = torch.arange(0, n_points, device=x.device).repeat(batch_size, k, 1).transpose(2, 1)
+    # print("nn_idx shape: ", nn_idx.shape)
+    # print("center_idx shape: ", center_idx.shape)
+    # print("torch.stach shape: ", torch.stack((nn_idx, center_idx), dim=0).shape)
+
     return torch.stack((nn_idx, center_idx), dim=0)
 
 
@@ -161,3 +165,4 @@ class DenseDilatedKnnGraph(nn.Module):
             # print("calling 2 with k and dilationargs: ", self.k, self.dilation)
             edge_index = dense_knn_matrix(x, self.k * self.dilation, relative_pos)
         return self._dilated(edge_index)
+    

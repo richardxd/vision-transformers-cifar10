@@ -6,6 +6,7 @@ from torch import nn
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from gcn_lib.torch_vertex import Grapher, act_layer
+from torch_geometric.nn.dense import dense_diff_pool
 
 # helpers
 
@@ -17,14 +18,14 @@ class CIFARStem(nn.Module):
     def __init__(self, in_dim=3, out_dim=192, act='relu'):
         super().__init__()
         self.convs = nn.Sequential(
-            nn.Conv2d(in_dim, out_dim//4, 3, stride=2, padding=1),  # Changed stride to 1
-            nn.BatchNorm2d(out_dim//4),
+            nn.Conv2d(in_dim, out_dim // 2, 3, stride=2, padding=1),  # Changed stride to 1
+            nn.BatchNorm2d(out_dim // 2),
             act_layer(act),
-            nn.Conv2d(out_dim//4, out_dim//2, 3, stride=2, padding=1),  # Changed stride to 1
-            nn.BatchNorm2d(out_dim//2),
-            act_layer(act),
-            nn.Conv2d(out_dim//2, out_dim, 3, stride=2, padding=1),  # Optionally, adjust or remove
+            nn.Conv2d(out_dim // 2, out_dim, 3, stride=2, padding=1),  # Optionally, adjust or remove
             nn.BatchNorm2d(out_dim),
+            act_layer(act),
+            nn.Conv2d(out_dim, out_dim, 3, stride=1, padding=1),  # Optionally, adjust or remove
+            nn.BatchNorm2d(out_dim), # result on cifar is 8 x 8 
         )
 
     def forward(self, x):
@@ -126,23 +127,38 @@ class ViT(nn.Module):
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
-
-        self.cifarstem = CIFARStem(in_dim=3, out_dim=320, act="relu")
-        self.Grapher = Grapher(320, kernel_size=16, dilation=1, conv='edge', act='gelu', norm="batch",
+        self.filter = 512
+        self.cifarstem = CIFARStem(in_dim=3, out_dim=self.filter, act="relu")
+        self.Grapher = Grapher(self.filter, kernel_size=16, dilation=1, conv='edge', act='gelu', norm="batch",
                  bias=True,  stochastic=False, epsilon=0.0, r=1, n=num_patches, drop_path=0.0, relative_pos=False)
+        # s = nn.Parameter(torch.rand(TODO, TODO, patch_heigh * patch_width))
+        
 
     def forward(self, img):
         # augment the image by generating knn graphs on it
         # print("img shape: ", img.shape)
+        # image size 512 3 32 32 -> 
+        
         x = self.cifarstem(img)
         # print("x shape: ", x.shape)
+        # # x shape 512 320 4 4
         
         x = self.Grapher(x)
-        # print("x shape after Grapher:", x.shape)
+        # print("x shape after Grapher, before rearranging:", x.shape)
         
-        # apply dense pooling 
+        # # x shape 512 320 4 4
 
-        x = self.to_patch_embedding(img)
+        # # apply dense pooling
+        # x = dense_diff_pool(x, x, None, None) 
+
+        # reshape x to 512 64 512
+        x = x.reshape(x.shape[0], x.shape[1], -1).transpose(1, 2)
+        # print("after rearranging x:", x.shape)
+
+     
+        # x = self.to_patch_embedding(img)
+        
+        # patch embedding 512 64 512
         # print("x shape: ", x.shape)
         b, n, _ = x.shape
 

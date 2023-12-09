@@ -9,6 +9,7 @@ from .pos_embed import get_2d_relative_pos_embed
 import torch.nn.functional as F
 from timm.models.layers import DropPath
 from torch_geometric.nn.dense import dense_diff_pool
+from torch_geometric.utils import to_dense_adj
 
 class MRConv2d(nn.Module):
     """
@@ -117,6 +118,11 @@ class DyGraphConv2d(GraphConv2d):
         self.d = dilation
         self.r = r
         self.dilated_knn_graph = DenseDilatedKnnGraph(kernel_size, dilation, stochastic, epsilon)
+        
+        # initialize the assignment vector, for 8x8 patches, we have 64 patches
+        # print("in channel size:", in_channels)
+        # 320
+        self.s = nn.Parameter(torch.rand(512, 16 * 16, 8 * 8))  # hardcoding 512 batch size for now
 
     def forward(self, x, relative_pos=None):
         B, C, H, W = x.shape
@@ -124,9 +130,61 @@ class DyGraphConv2d(GraphConv2d):
         if self.r > 1:
             y = F.avg_pool2d(x, self.r, self.r)
             y = y.reshape(B, C, -1, 1).contiguous()            
+        # print("before reshaping x.shape:", x.shape)
+        # before reshaping x.shape: torch.Size([512, 320, 4, 4])
         x = x.reshape(B, C, -1, 1).contiguous()
+        # print("after reshaping x.shape:", x.shape)
+        # after reshaping x.shape: torch.Size([512, 320, 16, 1])
         edge_index = self.dilated_knn_graph(x, y, relative_pos)
+        # print("DygraphConv2d edge.shape:", edge_index.shape)
+        # DygraphConv2d edge_index.shape: torch.Size([2, 512, 16, 16])
+        
+
+        
         x = super(DyGraphConv2d, self).forward(x, edge_index, y)
+        # print("resulting x shape, after graph conv:", x.shape)
+        # x = x.squeeze(-1) # squeeze the last dimension so now x is B x F x N (512 * 640 * 256)
+        # # permute x so that it is B x N x F (512 * 16 * 640)
+        # x = x.permute(0, 2, 1).contiguous()
+        
+
+
+        # resulting x shape, after graph conv: torch.Size([512, 640, 16, 1])
+        # print("reshaping x:", x.reshape(B, -1, H, W).contiguous().shape)
+        # reshaping x: torch.Size([512, 640, 16, 16])
+
+
+
+
+        # edge_index: (2, batch_size, num_points, k)
+        # given batch_size of such instance, and the number of points, there are k neighbors for each point in the batch. 
+        # compute the adjacency matrix for each batch
+
+        # get the one dimensional batch_size * num_points * k batch vector which indicates what batch each edge belongs to
+        
+        # _, batch_size, num_points, k = edge_index.shape
+
+        # batch_vector = torch.arange(batch_size).unsqueeze(1).unsqueeze(1).repeat(1, num_points, k).reshape(-1).to(x.device)
+        # print("batch_vector size:", batch_vector.shape)
+
+        # flatten the edge_index tensor to 2 dimensional, following the order by batch_size, num_points, k
+        # edge_index = edge_index.reshape(2, -1)
+        # print("edge_index shape:", edge_index.shape)
+        
+        # adj = to_dense_adj(edge_index, batch_vector, batch_size=batch_size)
+        # print("DygraphConv2d adj.shape:", adj.shape)
+        
+        # somehow apply dense_diff_pool here?
+
+        # pool the graph into 8x8 patches based on the assignment vector
+        # turn into [512, 640, 64, 1] tensor
+
+        # turn x back
+        # x = x.unsqueeze(-1)
+
+        # print("x shape after dense_diff_pool:", x.shape)
+        # print("reshaping x:", x.reshape(B, -1, H, W).contiguous().shape)
+    
         return x.reshape(B, -1, H, W).contiguous()
 
 
@@ -169,10 +227,20 @@ class Grapher(nn.Module):
 
     def forward(self, x):
         _tmp = x
+        # print("grapher module x.shape:", x.shape)
+        # grapher module x.shape: torch.Size([512, 320, 4, 4])
         x = self.fc1(x)
+        # print("grapher module x.shape after fc1:", x.shape)
+        # grapher module x.shape after fc1: torch.Size([512, 320, 4, 4])
         B, C, H, W = x.shape
         relative_pos = self._get_relative_pos(self.relative_pos, H, W)
         x = self.graph_conv(x, relative_pos)
+        # print("grapher module x.shape after graph_conv:", x.shape) 
+        # grapher module x.shape after graph_conv: torch.Size([512, 640, 4, 4])
+
         x = self.fc2(x)
+        # print("grapher module x.shape after fc2:", x.shape)
+        # grapher module x.shape after fc2: torch.Size([512, 320, 4, 4])
+
         x = self.drop_path(x) + _tmp
         return x
