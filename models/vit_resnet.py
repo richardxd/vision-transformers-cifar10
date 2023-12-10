@@ -5,6 +5,7 @@ from torch import nn
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+import math
 
 # helpers
 
@@ -78,7 +79,31 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return x
 
-class ViT(nn.Module):
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, activation, batch_norm, skip_connections):
+        super(ResidualBlock, self).__init__()
+
+        self.skip_connections = skip_connections
+ 
+        layers = [nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)]
+        
+        if batch_norm:
+            layers.append(nn.BatchNorm2d(out_channels))
+        
+        layers.append(activation)
+        
+        self.conv_seq = nn.Sequential(*layers)
+        
+    def forward(self, x):
+        out = self.conv_seq(x)
+        if self.skip_connections:
+            return x + out 
+        return out 
+
+
+
+class ViT_resnet(nn.Module):
     def __init__(self, *, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
         super().__init__()
         image_height, image_width = pair(image_size)
@@ -91,9 +116,49 @@ class ViT(nn.Module):
         assert pool in {'cls', 'mean'}, 'pool type must be either cls (cls token) or mean (mean pooling)'
 
         self.to_patch_embedding = nn.Sequential(
-            Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
-            nn.Linear(patch_dim, dim),
+            # Rearrange('b c (h p1) (w p2) -> b (h w) (p1 p2 c)', p1 = patch_height, p2 = patch_width),
+            # instead of linear layer, do convolutions to downsmaple features
+            # from 512, 3, 32, 32
+             
+            # to 512 64 16 16
+            nn.Conv2d(3, 64, 3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+
+            # residual block of dimension similar to the below
+            nn.Conv2d(64, 64, 3, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            # ResidualBlock(3, 64, 3, 2, 1, nn.ReLU(inplace=True), True, True),
+
+            # to 512 64 16 16
+            # nn.Conv2d(64, 64, 3, stride=1, padding=1),
+            # nn.BatchNorm2d(64),
+            # nn.ReLU(inplace=True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+            ResidualBlock(64, 64, 3, 1, 1, nn.ReLU(inplace=True), True, True),
+
+            # finally, linear layer maps everything back to 512, 64, 512
+            Rearrange('b c h w -> b c (h w)'),
+            # nn.conv2d()
+            # nn.Linear(patch_dim, dim),
+            nn.Linear(256, dim)
         )
+
+        # resnet like initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                # insert code to compute sigma
+                sigma = math.sqrt(1 / (m.in_channels * m.kernel_size[0] * m.kernel_size[1])) # TODO: in_channels or out_channels?
+                m.weight.data.normal_(0, sigma)
+                m.bias.data.zero_()
 
         self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
@@ -109,8 +174,11 @@ class ViT(nn.Module):
             nn.Linear(dim, num_classes)
         )
 
+
     def forward(self, img):
+        # print("image shape is:", img.shape)
         x = self.to_patch_embedding(img)
+        # print("x shape is:", x.shape)
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
@@ -124,3 +192,6 @@ class ViT(nn.Module):
 
         x = self.to_latent(x)
         return self.mlp_head(x)
+    
+    def compute_number_of_trainable_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)

@@ -184,6 +184,9 @@ class DeepGCN(torch.nn.Module):
 
         x = F.adaptive_avg_pool2d(x, 1)
         return self.prediction(x).squeeze(-1).squeeze(-1)
+    
+    def compute_number_of_trainable_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
 @register_model

@@ -5,6 +5,8 @@ from torch import nn
 
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
+from gcn_lib.torch_vertex import Grapher, act_layer
+from torch_geometric.nn.dense import dense_diff_pool
 
 # helpers
 
@@ -12,6 +14,23 @@ def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
 # classes
+class CIFARStem(nn.Module):
+    def __init__(self, in_dim=3, out_dim=192, act='relu'):
+        super().__init__()
+        self.convs = nn.Sequential(
+            nn.Conv2d(in_dim, out_dim // 2, 3, stride=2, padding=1),  # Changed stride to 1
+            nn.BatchNorm2d(out_dim // 2),
+            act_layer(act),
+            nn.Conv2d(out_dim // 2, out_dim, 3, stride=2, padding=1),  # Optionally, adjust or remove
+            nn.BatchNorm2d(out_dim),
+            act_layer(act),
+            nn.Conv2d(out_dim, out_dim, 3, stride=1, padding=1),  # Optionally, adjust or remove
+            nn.BatchNorm2d(out_dim), # result on cifar is 8 x 8 
+        )
+
+    def forward(self, x):
+        x = self.convs(x)
+        return x
 
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
@@ -78,7 +97,7 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return x
 
-class ViT(nn.Module):
+class ViT_knn_gnn(nn.Module):
     def __init__(self, *, image_size, patch_size, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
         super().__init__()
         image_height, image_width = pair(image_size)
@@ -108,9 +127,39 @@ class ViT(nn.Module):
             nn.LayerNorm(dim),
             nn.Linear(dim, num_classes)
         )
+        self.filter = 512
+        self.cifarstem = CIFARStem(in_dim=3, out_dim=self.filter, act="relu")
+        self.Grapher = Grapher(self.filter, kernel_size=16, dilation=1, conv='edge', act='gelu', norm="batch",
+                 bias=True,  stochastic=False, epsilon=0.0, r=1, n=num_patches, drop_path=0.0, relative_pos=False)
+        # s = nn.Parameter(torch.rand(TODO, TODO, patch_heigh * patch_width))
+        
 
     def forward(self, img):
-        x = self.to_patch_embedding(img)
+        # augment the image by generating knn graphs on it
+        # print("img shape: ", img.shape)
+        # image size 512 3 32 32 -> 
+        
+        x = self.cifarstem(img)
+        # print("x shape: ", x.shape)
+        # # x shape 512 320 4 4
+        
+        x = self.Grapher(x)
+        # print("x shape after Grapher, before rearranging:", x.shape)
+        
+        # # x shape 512 320 4 4
+
+        # # apply dense pooling
+        # x = dense_diff_pool(x, x, None, None) 
+
+        # reshape x to 512 64 512
+        x = x.reshape(x.shape[0], x.shape[1], -1).transpose(1, 2)
+        # print("after rearranging x:", x.shape)
+
+     
+        # x = self.to_patch_embedding(img)
+        
+        # patch embedding 512 64 512
+        # print("x shape: ", x.shape)
         b, n, _ = x.shape
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
@@ -124,3 +173,6 @@ class ViT(nn.Module):
 
         x = self.to_latent(x)
         return self.mlp_head(x)
+
+    def compute_number_of_trainable_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)

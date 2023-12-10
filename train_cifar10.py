@@ -30,46 +30,16 @@ from models import *
 from utils import progress_bar
 from randomaug import RandAugment
 from models.vit import ViT
+from models.vit_knn_gnn import ViT_knn_gnn
+from models.vit_resnet import ViT_resnet
+
+
 from models.convmixer import ConvMixer
 
 from timm.scheduler import create_scheduler
 
 # parsers
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-
-# # Learning rate schedule parameters
-# parser.add_argument('--sched', default='step', type=str, metavar='SCHEDULER',
-#                     help='LR scheduler (default: "step"')
-# parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-#                     help='learning rate (default: 0.01)')
-# parser.add_argument('--lr-noise', type=float, nargs='+', default=None, metavar='pct, pct',
-#                     help='learning rate noise on/off epoch percentages')
-# parser.add_argument('--lr-noise-pct', type=float, default=0.67, metavar='PERCENT',
-#                     help='learning rate noise limit percent (default: 0.67)')
-# parser.add_argument('--lr-noise-std', type=float, default=1.0, metavar='STDDEV',
-#                     help='learning rate noise std-dev (default: 1.0)')
-# parser.add_argument('--lr-cycle-mul', type=float, default=1.0, metavar='MULT',
-#                     help='learning rate cycle len multiplier (default: 1.0)')
-# parser.add_argument('--lr-cycle-limit', type=int, default=1, metavar='N',
-#                     help='learning rate cycle limit')
-# parser.add_argument('--warmup-lr', type=float, default=0.0001, metavar='LR',
-#                     help='warmup learning rate (default: 0.0001)')
-# parser.add_argument('--min-lr', type=float, default=1e-5, metavar='LR',
-#                     help='lower lr bound for cyclic schedulers that hit 0 (1e-5)')
-# parser.add_argument('--epochs', type=int, default=200, metavar='N',
-#                     help='number of epochs to train (default: 2)')
-# parser.add_argument('--start-epoch', default=None, type=int, metavar='N',
-#                     help='manual epoch number (useful on restarts)')
-# parser.add_argument('--decay-epochs', type=float, default=30, metavar='N',
-#                     help='epoch interval to decay LR')
-# parser.add_argument('--warmup-epochs', type=int, default=3, metavar='N',
-#                     help='epochs to warmup LR, if scheduler supports')
-# parser.add_argument('--cooldown-epochs', type=int, default=10, metavar='N',
-#                     help='epochs to cooldown LR at min_lr, after cyclic schedule ends')
-# parser.add_argument('--patience-epochs', type=int, default=10, metavar='N',
-#                     help='patience epochs for Plateau LR scheduler (default: 10')
-# parser.add_argument('--decay-rate', '--dr', type=float, default=0.1, metavar='RATE',
-#                     help='LR decay rate (default: 0.1)')
 
 
 parser.add_argument('--lr', default=1e-4, type=float, help='learning rate') # resnets.. 1e-3, Vit..1e-4
@@ -94,6 +64,7 @@ args = parser.parse_args()
 
 # take in args
 usewandb = ~args.nowandb
+usewandb = False
 if usewandb:
     import wandb
     watermark = "{}_lr{}".format(args.net, args.lr)
@@ -269,7 +240,36 @@ elif args.net=="vig":
     drop_rate=0.1,
     num_knn=8
 )
+elif args.net=="vit_knn_gnn":
+    # ViT for cifar10
+    net = ViT_knn_gnn(
+    image_size = size,
+    patch_size = args.patch,
+    num_classes = 10,
+    dim = int(args.dimhead),
+    depth = 6,
+    heads = 8,
+    mlp_dim = 512,
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
+elif args.net=="vit_resnet":
+    # ViT for cifar10
+    net = vit_resnet(
+    image_size = size,
+    patch_size = args.patch,
+    num_classes = 10,
+    dim = int(args.dimhead),
+    depth = 6,
+    heads = 8,
+    mlp_dim = 512,
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
 
+
+
+print("number of trainiable parameters is:", net.compute_number_of_trainable_parameters())
 # For Multi-GPU
 if 'cuda' in device:
     print(device)
