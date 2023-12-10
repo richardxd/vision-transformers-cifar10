@@ -124,3 +124,6 @@ class ViT(nn.Module):
 
         x = self.to_latent(x)
         return self.mlp_head(x)
+
+    def compute_number_of_trainable_parameters(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)

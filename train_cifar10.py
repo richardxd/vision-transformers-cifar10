@@ -64,7 +64,6 @@ args = parser.parse_args()
 
 # take in args
 usewandb = ~args.nowandb
-usewandb = False
 if usewandb:
     import wandb
     watermark = "{}_lr{}".format(args.net, args.lr)
@@ -255,7 +254,7 @@ elif args.net=="vit_knn_gnn":
 )
 elif args.net=="vit_resnet":
     # ViT for cifar10
-    net = vit_resnet(
+    net = ViT_resnet(
     image_size = size,
     patch_size = args.patch,
     num_classes = 10,
